@@ -119,6 +119,10 @@ body {
 .win-note { font-size:11px; color:#6c91c2; }
 .finished-msg { display:none; text-align:center; padding:20px; color:#90caf9; font-size:14px; line-height:2; }
 .finished-msg.show { display:block; }
+.close-btn {
+  margin-top:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(66,165,245,0.4);
+  color:#bbdefb; font-size:12px; padding:8px 18px; border-radius:10px; cursor:pointer;
+}
 </style>
 </head>
 <body>
@@ -156,36 +160,76 @@ body {
     <div class="win-title">برنده شدی!</div>
     <div class="win-sub" id="winSub"></div>
     <div class="win-note">می‌تونی این صفحه رو ببندی، نتیجه ذخیره شد ✅</div>
+    <button class="close-btn" onclick="finishAndClose()">بستن و ادامه در بات</button>
   </div>
 </div>
 <script>
 // ── خواندن پارامترهای URL (که بات فرستاده) ──
 const params = new URLSearchParams(window.location.search);
-let clicks    = parseInt(params.get('clicks')) || 0;
+let urlClicks = parseInt(params.get('clicks')) || 0;
 let round     = parseInt(params.get('round'))  || 1;
 let target    = parseInt(params.get('target')) || 3000;
 const MAX_ROUNDS = parseInt(params.get('max')) || 50;
 
+// ── کلید ذخیره‌سازی محلی (مستقل از بات، همیشه قابل‌اعتماد) ──
+const STORAGE_KEY = 'brt_progress_v1';
+
+function readLocal(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return null;
+    return JSON.parse(raw);
+  }catch(e){ return null; }
+}
+function writeLocal(r, c){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({round:r, clicks:c})); }catch(e){}
+}
+
+// اگر دیتای محلی مربوط به همین لِوِل بود و بیشتر از مقدار بات بود، همونو نگه می‌داریم
+// (یعنی اگر بات هنوز خبر آخرین کلیک‌ها رو نگرفته بود، چیزی گم نمی‌شه)
+// اگر لِوِل عوض شده باشه (یعنی برنده شده و رفته لِوِل بعد)، از همون urlClicks (که ۰ هست) شروع می‌کنیم.
+const local = readLocal();
+let clicks;
+if(local && local.round === round){
+  clicks = Math.max(local.clicks || 0, urlClicks);
+}else{
+  clicks = urlClicks;
+}
+writeLocal(round, clicks);
+
 let isWinShowing = false;
-let lastReportedClicks = clicks; // برای اینکه فقط وقتی تغییر کرد گزارش بدیم
+let lastReportedClicks = -1; // یعنی هنوز چیزی به بات گزارش نشده
 
 function toP(n){ return String(n).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]); }
 
 let tg = null;
 try{ tg = window.Telegram?.WebApp; if(tg) tg.ready(); } catch(e){}
 
+// توجه: tg.sendData بعد از ارسال، Mini App رو می‌بنده!
+// به همین خاطر هیچ‌وقت وسط بازی (مثلاً با setInterval) صداش نمی‌زنیم،
+// فقط وقتی واقعاً قراره صفحه بسته شه یا کاربر برنده شده.
 function sendToBot(payload){
   try{ if(tg && tg.sendData) tg.sendData(JSON.stringify(payload)); }catch(e){}
 }
 
-// ── ارسال گزارش پیشرفت به بات هر ۳ ثانیه (فقط اگه چیزی تغییر کرده) ──
-setInterval(() => {
+function reportProgressIfNeeded(){
   if (round > MAX_ROUNDS) return;
-  if (clicks !== lastReportedClicks) {
+  if (clicks !== lastReportedClicks && clicks > 0) {
     sendToBot({event:"progress", clicks: clicks, round: round});
     lastReportedClicks = clicks;
   }
-}, 3000);
+}
+
+// ── وقتی کاربر واقعاً از صفحه خارج می‌شه (نه قبلش!) آخرین وضعیت رو به بات می‌فرستیم ──
+// pagehide نسبت به beforeunload در وب‌ویوهای موبایل/تلگرام قابل‌اعتمادتره
+window.addEventListener('pagehide', reportProgressIfNeeded);
+window.addEventListener('beforeunload', reportProgressIfNeeded);
+// وقتی Mini App توسط دکمه بستن تلگرام (بالای صفحه) بسته می‌شه هم این رخ می‌ده
+try{ if(tg) tg.onEvent('viewportChanged', function(){ if(tg.isExpanded === false){} }); }catch(e){}
+
+function finishAndClose(){
+  try{ if(tg && tg.close) tg.close(); }catch(e){}
+}
 
 // ── ذرات پس‌زمینه ──
 (function(){
@@ -227,6 +271,7 @@ function handleClick(e){
   btn.appendChild(rp); setTimeout(()=>rp.remove(),600);
 
   clicks++;
+  writeLocal(round, clicks); // ذخیره فوری و قابل‌اعتماد در حافظه مرورگر
   updateUI();
 
   if(clicks>=target){
@@ -241,17 +286,12 @@ function showWin(){
   if(nr>MAX_ROUNDS) sub.textContent='۱ گیگابایت برات ارسال میشه 🎁\nتمام لِوِل‌ها رو تموم کردی! 🏆';
   else sub.textContent='۱ گیگابایت رایگان برات ارسال میشه 🎁\nبرای دور بعد، دوباره از منوی بات «بازی و جایزه» رو بزن';
   document.getElementById('winOverlay').classList.add('show');
+  // برای لِوِل بعد، محلی هم صفر می‌شه تا اگه دوباره برگشت از صفر شروع شه
+  writeLocal(round + 1, 0);
   sendToBot({event:"win", clicks: clicks, round: round});
 }
 
 updateUI();
-
-// ── ارسال آخرین وضعیت قبل از بسته شدن صفحه (best-effort) ──
-window.addEventListener('beforeunload', () => {
-  if (clicks !== lastReportedClicks && round <= MAX_ROUNDS) {
-    sendToBot({event:"progress", clicks: clicks, round: round});
-  }
-});
 </script>
 </body>
 </html>
