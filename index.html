@@ -2,401 +2,256 @@
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>BRT VPN Game</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>بازی BRT VPN</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  body {
-    background: linear-gradient(135deg, #0a1628 0%, #0d2144 50%, #0a1628 100%);
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-family: 'Segoe UI', Tahoma, sans-serif;
-    color: white;
-    overflow: hidden;
-    user-select: none;
-  }
-  .stars {
-    position: fixed;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    pointer-events: none;
-    z-index: 0;
-  }
-  .star {
-    position: absolute;
-    background: white;
-    border-radius: 50%;
-    animation: twinkle 3s infinite;
-  }
-  @keyframes twinkle {
-    0%, 100% { opacity: 0.3; }
-    50% { opacity: 1; }
-  }
-  .container {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 20px;
-    padding: 20px;
-    width: 100%;
-    max-width: 400px;
-  }
-  .header {
-    text-align: center;
-  }
-  .header h1 {
-    font-size: 28px;
-    font-weight: 800;
-    background: linear-gradient(90deg, #4fc3f7, #ffffff, #4fc3f7);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    letter-spacing: 3px;
-  }
-  .header p {
-    font-size: 13px;
-    color: #90caf9;
-    margin-top: 4px;
-  }
-  .level-badge {
-    background: linear-gradient(135deg, #1565c0, #1e88e5);
-    border: 2px solid #4fc3f7;
-    border-radius: 30px;
-    padding: 8px 24px;
-    font-size: 16px;
-    font-weight: 700;
-    color: #e3f2fd;
-    box-shadow: 0 0 20px rgba(79, 195, 247, 0.3);
-  }
-  .stats-row {
-    display: flex;
-    gap: 12px;
-    width: 100%;
-    justify-content: center;
-  }
-  .stat-box {
-    background: rgba(255,255,255,0.07);
-    border: 1px solid rgba(79,195,247,0.3);
-    border-radius: 14px;
-    padding: 10px 18px;
-    text-align: center;
-    flex: 1;
-  }
-  .stat-box .label { font-size: 11px; color: #90caf9; }
-  .stat-box .value { font-size: 20px; font-weight: 800; color: #e3f2fd; }
-  .progress-area {
-    width: 100%;
-    background: rgba(255,255,255,0.07);
-    border-radius: 16px;
-    padding: 16px;
-    border: 1px solid rgba(79,195,247,0.2);
-  }
-  .progress-label {
-    display: flex;
-    justify-content: space-between;
-    font-size: 12px;
-    color: #90caf9;
-    margin-bottom: 8px;
-  }
-  .progress-bar-bg {
-    width: 100%;
-    height: 14px;
-    background: rgba(255,255,255,0.1);
-    border-radius: 10px;
-    overflow: hidden;
-  }
-  .progress-bar-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #1565c0, #4fc3f7);
-    border-radius: 10px;
-    transition: width 0.2s ease;
-    box-shadow: 0 0 10px rgba(79,195,247,0.5);
-  }
-  .progress-percent {
-    text-align: center;
-    font-size: 13px;
-    color: #4fc3f7;
-    margin-top: 6px;
-    font-weight: 700;
-  }
-  .btn-wrap {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .click-btn {
-    width: 200px;
-    height: 200px;
-    border-radius: 50%;
-    background: radial-gradient(circle at 35% 35%, #1e88e5, #0d47a1);
-    border: 4px solid #4fc3f7;
-    box-shadow: 0 0 40px rgba(79,195,247,0.4), 0 0 80px rgba(79,195,247,0.15);
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: 30px;
-    font-weight: 900;
-    color: white;
-    letter-spacing: 4px;
-    transition: transform 0.08s ease, box-shadow 0.08s ease;
-    -webkit-user-select: none;
-  }
-  .click-btn:active, .click-btn.pressed {
-    transform: scale(0.93);
-    box-shadow: 0 0 20px rgba(79,195,247,0.6);
-  }
-  .click-btn .btn-sub {
-    font-size: 11px;
-    letter-spacing: 2px;
-    color: #90caf9;
-    margin-top: 4px;
-    font-weight: 400;
-  }
-  .float-num {
-    position: absolute;
-    font-size: 22px;
-    font-weight: 900;
-    color: #4fc3f7;
-    pointer-events: none;
-    animation: floatUp 0.8s ease forwards;
-  }
-  @keyframes floatUp {
-    0% { opacity: 1; transform: translateY(0) scale(1); }
-    100% { opacity: 0; transform: translateY(-80px) scale(1.4); }
-  }
-  .win-overlay {
-    display: none;
-    position: fixed;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    background: rgba(0,0,0,0.85);
-    z-index: 100;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    gap: 16px;
-  }
-  .win-overlay.show { display: flex; }
-  .win-box {
-    background: linear-gradient(135deg, #0d2144, #1565c0);
-    border: 3px solid #4fc3f7;
-    border-radius: 24px;
-    padding: 32px 28px;
-    text-align: center;
-    max-width: 300px;
-    box-shadow: 0 0 60px rgba(79,195,247,0.4);
-  }
-  .win-box h2 { font-size: 28px; margin-bottom: 10px; }
-  .win-box p { font-size: 15px; color: #90caf9; line-height: 1.6; }
-  .win-box .prize { font-size: 22px; font-weight: 800; color: #4fc3f7; margin: 12px 0; }
-  .next-btn {
-    margin-top: 16px;
-    background: linear-gradient(135deg, #1565c0, #1e88e5);
-    border: 2px solid #4fc3f7;
-    color: white;
-    font-size: 16px;
-    font-weight: 700;
-    padding: 12px 32px;
-    border-radius: 30px;
-    cursor: pointer;
-    letter-spacing: 1px;
-  }
-  .done-overlay {
-    display: none;
-    position: fixed;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    background: rgba(0,0,0,0.9);
-    z-index: 100;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-  }
-  .done-overlay.show { display: flex; }
-  .done-box {
-    background: linear-gradient(135deg, #1a0533, #2d1b69);
-    border: 3px solid #7c4dff;
-    border-radius: 24px;
-    padding: 32px 28px;
-    text-align: center;
-    max-width: 300px;
-  }
-  .done-box h2 { font-size: 26px; margin-bottom: 10px; }
-  .done-box p { font-size: 14px; color: #ce93d8; line-height: 1.6; }
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+body {
+  background: linear-gradient(160deg, #0a1628 0%, #0d2146 50%, #0a1628 100%);
+  min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-family: Tahoma, sans-serif; color: #fff; overflow: hidden;
+}
+.particles { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:0; }
+.particle {
+  position:absolute; width:3px; height:3px;
+  background:rgba(100,180,255,0.4); border-radius:50%;
+  animation: float linear infinite;
+}
+@keyframes float {
+  0%   { transform:translateY(100vh) scale(0); opacity:0; }
+  10%  { opacity:1; }
+  90%  { opacity:1; }
+  100% { transform:translateY(-10px) scale(1); opacity:0; }
+}
+.container {
+  position:relative; z-index:1;
+  width:100%; max-width:380px;
+  padding:20px 16px;
+  display:flex; flex-direction:column; align-items:center; gap:16px;
+}
+.logo {
+  font-size:30px; font-weight:900; letter-spacing:8px;
+  background:linear-gradient(90deg,#4fc3f7,#81d4fa,#b3e5fc,#4fc3f7);
+  background-size:200%;
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  animation: shimmer 3s linear infinite;
+}
+@keyframes shimmer { 0%{background-position:0%} 100%{background-position:200%} }
+.subtitle { font-size:13px; color:#90caf9; margin-top:2px; }
+.sync-badge {
+  font-size:11px; color:#66bb6a; display:flex; align-items:center; gap:5px;
+}
+.sync-dot { width:7px; height:7px; border-radius:50%; background:#66bb6a; animation:pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.level-badge {
+  background:linear-gradient(135deg,#1565c0,#0d47a1);
+  border:1px solid #42a5f5; border-radius:20px;
+  padding:8px 28px; font-size:14px; font-weight:700; color:#bbdefb;
+  box-shadow:0 0 15px rgba(66,165,245,0.3);
+}
+.stats-row { display:flex; gap:10px; width:100%; }
+.stat-box {
+  flex:1; background:rgba(255,255,255,0.05);
+  border:1px solid rgba(66,165,245,0.2); border-radius:12px;
+  padding:10px 6px; text-align:center;
+}
+.stat-label { font-size:10px; color:#90caf9; margin-bottom:3px; }
+.stat-value { font-size:18px; font-weight:800; color:#e3f2fd; }
+.progress-wrap {
+  width:100%; background:rgba(255,255,255,0.05);
+  border:1px solid rgba(66,165,245,0.2); border-radius:14px; padding:14px 16px;
+}
+.progress-header { display:flex; justify-content:space-between; margin-bottom:8px; font-size:12px; }
+.progress-label { color:#90caf9; }
+.progress-percent { color:#4fc3f7; font-weight:700; font-size:14px; }
+.progress-bar-bg { height:10px; background:rgba(255,255,255,0.1); border-radius:5px; overflow:hidden; }
+.progress-bar-fill {
+  height:100%;
+  background:linear-gradient(90deg,#1565c0,#42a5f5,#81d4fa);
+  border-radius:5px; transition:width 0.15s ease;
+  box-shadow:0 0 8px rgba(66,165,245,0.6);
+}
+.progress-numbers { margin-top:7px; text-align:center; font-size:12px; color:#bbdefb; }
+.btn-brt {
+  width:165px; height:165px; border-radius:50%; border:none; cursor:pointer;
+  background:radial-gradient(circle at 35% 35%,#1976d2,#0d47a1,#01244e);
+  box-shadow:0 0 30px rgba(33,150,243,0.5),0 0 60px rgba(33,150,243,0.2),inset 0 0 20px rgba(255,255,255,0.05);
+  display:flex; align-items:center; justify-content:center; flex-direction:column; gap:4px;
+  transition:transform 0.08s ease, box-shadow 0.08s ease;
+  position:relative;
+}
+.btn-brt:active { transform:scale(0.91); box-shadow:0 0 12px rgba(33,150,243,0.4),inset 0 0 30px rgba(255,255,255,0.1); }
+.brt-text {
+  font-size:26px; font-weight:900; letter-spacing:5px;
+  background:linear-gradient(180deg,#e3f2fd,#90caf9);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+}
+.click-hint { font-size:11px; color:rgba(144,202,249,0.7); }
+.ripple {
+  position:absolute; border-radius:50%;
+  background:rgba(255,255,255,0.2); transform:scale(0);
+  animation:ripple-anim 0.5s linear; pointer-events:none;
+}
+@keyframes ripple-anim { to { transform:scale(3); opacity:0; } }
+.prize-banner {
+  background:linear-gradient(135deg,rgba(21,101,192,0.3),rgba(13,71,161,0.2));
+  border:1px solid rgba(66,165,245,0.3); border-radius:12px;
+  padding:10px 20px; text-align:center; font-size:13px; color:#bbdefb;
+}
+.prize-banner span { color:#4fc3f7; font-weight:700; }
+.win-overlay {
+  display:none; position:fixed; inset:0; z-index:100;
+  background:rgba(0,0,0,0.85);
+  align-items:center; justify-content:center; flex-direction:column;
+}
+.win-overlay.show { display:flex; }
+.win-box {
+  background:linear-gradient(135deg,#0d47a1,#1565c0);
+  border:2px solid #42a5f5; border-radius:24px;
+  padding:32px 28px; text-align:center; max-width:300px;
+  box-shadow:0 0 50px rgba(66,165,245,0.5);
+}
+.win-emoji { font-size:48px; margin-bottom:8px; }
+.win-title { font-size:22px; font-weight:900; color:#e3f2fd; margin-bottom:8px; }
+.win-sub { font-size:13px; color:#90caf9; margin-bottom:10px; line-height:1.7; }
+.win-note { font-size:11px; color:#6c91c2; }
+.finished-msg { display:none; text-align:center; padding:20px; color:#90caf9; font-size:14px; line-height:2; }
+.finished-msg.show { display:block; }
 </style>
 </head>
 <body>
-
-<div class="stars" id="stars"></div>
-
-<div class="container">
-  <div class="header">
-    <h1>B R T</h1>
-    <p>VPN Clicker Game</p>
+<div class="particles" id="particles"></div>
+<div class="container" id="mainContainer">
+  <div style="text-align:center">
+    <div class="logo">B R T</div>
+    <div class="subtitle">بازی VPN و جایزه 🎁</div>
   </div>
-
-  <div class="level-badge" id="levelBadge">🏆 Level 1</div>
-
+  <div class="sync-badge"><span class="sync-dot"></span><span>ذخیره خودکار فعال</span></div>
+  <div class="level-badge" id="levelBadge">لِوِل ۱ از ۵۰</div>
   <div class="stats-row">
-    <div class="stat-box">
-      <div class="label">کلیک شما</div>
-      <div class="value" id="clickCount">0</div>
-    </div>
-    <div class="stat-box">
-      <div class="label">هدف</div>
-      <div class="value" id="targetCount">500</div>
-    </div>
-    <div class="stat-box">
-      <div class="label">مانده</div>
-      <div class="value" id="remaining">500</div>
-    </div>
+    <div class="stat-box"><div class="stat-label">کلیک شما</div><div class="stat-value" id="clickCount">۰</div></div>
+    <div class="stat-box"><div class="stat-label">هدف</div><div class="stat-value" id="targetCount">۳۰۰۰</div></div>
+    <div class="stat-box"><div class="stat-label">مانده</div><div class="stat-value" id="remaining">۳۰۰۰</div></div>
   </div>
-
-  <div class="progress-area">
-    <div class="progress-label">
-      <span>پیشرفت</span>
-      <span id="roundInfo">دور ۱ از ۵۰</span>
+  <div class="progress-wrap">
+    <div class="progress-header">
+      <span class="progress-label">پیشرفت</span>
+      <span class="progress-percent" id="percent">۰٪</span>
     </div>
-    <div class="progress-bar-bg">
-      <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
-    </div>
-    <div class="progress-percent" id="progressPercent">۰٪</div>
+    <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill" style="width:0%"></div></div>
+    <div class="progress-numbers" id="progressNums">۰ از ۳۰۰۰</div>
   </div>
-
-  <div class="btn-wrap" id="btnWrap">
-    <button class="click-btn" id="clickBtn" onclick="handleClick(event)">
-      B R T
-      <span class="btn-sub">V P N</span>
-    </button>
-  </div>
+  <button class="btn-brt" id="brtBtn" onclick="handleClick(event)">
+    <span class="brt-text">BRT</span>
+    <span class="click-hint">کلیک کن!</span>
+  </button>
+  <div class="prize-banner">🎁 جایزه: <span>۱ گیگابایت رایگان</span> به ازای هر لِوِل</div>
 </div>
-
-<!-- Win overlay -->
+<div class="finished-msg" id="finishedMsg">🏆 شما تمام ۵۰ لِوِل رو تموم کردید!<br>ممنون از شرکت در بازی BRT 🌟</div>
 <div class="win-overlay" id="winOverlay">
   <div class="win-box">
-    <h2>🎉 آفرین!</h2>
-    <p class="prize">🏆 ۱ گیگ جایزه بردی!</p>
-    <p>درخواست شما ثبت شد.<br>ادمین به زودی کانفیگ رو برات میفرسته.</p>
-    <button class="next-btn" onclick="nextRound()">دور بعدی ▶</button>
+    <div class="win-emoji">🎉</div>
+    <div class="win-title">برنده شدی!</div>
+    <div class="win-sub" id="winSub"></div>
+    <div class="win-note">می‌تونی این صفحه رو ببندی، نتیجه ذخیره شد ✅</div>
   </div>
 </div>
-
-<!-- Done overlay -->
-<div class="done-overlay" id="doneOverlay">
-  <div class="done-box">
-    <h2>🌟 افسانه‌ای!</h2>
-    <p>تمام ۵۰ دور رو تموم کردی!<br>دیگه جایزه‌ای نمونده.<br><br>ممنون که با BRT VPN بودی 💙</p>
-  </div>
-</div>
-
 <script>
-  // ستاره‌های پس‌زمینه
-  const starsEl = document.getElementById('stars');
-  for (let i = 0; i < 60; i++) {
-    const s = document.createElement('div');
-    s.className = 'star';
-    const size = Math.random() * 2.5 + 0.5;
-    s.style.cssText = `width:${size}px;height:${size}px;top:${Math.random()*100}%;left:${Math.random()*100}%;animation-delay:${Math.random()*3}s;animation-duration:${2+Math.random()*3}s`;
-    starsEl.appendChild(s);
+// ── خواندن پارامترهای URL (که بات فرستاده) ──
+const params = new URLSearchParams(window.location.search);
+let clicks    = parseInt(params.get('clicks')) || 0;
+let round     = parseInt(params.get('round'))  || 1;
+let target    = parseInt(params.get('target')) || 3000;
+const MAX_ROUNDS = parseInt(params.get('max')) || 50;
+
+let isWinShowing = false;
+let lastReportedClicks = clicks; // برای اینکه فقط وقتی تغییر کرد گزارش بدیم
+
+function toP(n){ return String(n).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]); }
+
+let tg = null;
+try{ tg = window.Telegram?.WebApp; if(tg) tg.ready(); } catch(e){}
+
+function sendToBot(payload){
+  try{ if(tg && tg.sendData) tg.sendData(JSON.stringify(payload)); }catch(e){}
+}
+
+// ── ارسال گزارش پیشرفت به بات هر ۳ ثانیه (فقط اگه چیزی تغییر کرده) ──
+setInterval(() => {
+  if (round > MAX_ROUNDS) return;
+  if (clicks !== lastReportedClicks) {
+    sendToBot({event:"progress", clicks: clicks, round: round});
+    lastReportedClicks = clicks;
   }
+}, 3000);
 
-  // تارگت‌ها
-  const TARGETS = [3000, 4000, 5000, 6000, 8000, 9000, 10000];
-  const MAX_ROUNDS = 50;
-
-  function getTarget(round) {
-    if (round <= 7) return TARGETS[round - 1];
-    return 10000;
+// ── ذرات پس‌زمینه ──
+(function(){
+  const p=document.getElementById('particles');
+  for(let i=0;i<25;i++){
+    const d=document.createElement('div'); d.className='particle';
+    d.style.left=Math.random()*100+'%';
+    d.style.animationDuration=(6+Math.random()*12)+'s';
+    d.style.animationDelay=(-Math.random()*15)+'s';
+    d.style.width=d.style.height=(2+Math.random()*3)+'px';
+    p.appendChild(d);
   }
+})();
 
-  // خواندن state از تلگرام
-  let tg = window.Telegram?.WebApp;
-  let userId = null;
-  let state = { clicks: 0, round: 1, done: false };
-
-  if (tg) {
-    tg.expand();
-    try {
-      const d = tg.initDataUnsafe;
-      if (d?.user?.id) userId = d.user.id;
-    } catch(e) {}
-    try {
-      const saved = localStorage.getItem('brt_state_' + userId);
-      if (saved) state = JSON.parse(saved);
-    } catch(e) {}
+function updateUI(){
+  if(round>MAX_ROUNDS){
+    document.getElementById('mainContainer').style.display='none';
+    document.getElementById('finishedMsg').classList.add('show');
+    return;
   }
+  const rem=Math.max(0,target-clicks), pct=Math.min(100,Math.round((clicks/target)*100));
+  document.getElementById('levelBadge').textContent='لِوِل '+toP(round)+' از '+toP(MAX_ROUNDS);
+  document.getElementById('clickCount').textContent=toP(clicks);
+  document.getElementById('targetCount').textContent=toP(target);
+  document.getElementById('remaining').textContent=toP(rem);
+  document.getElementById('percent').textContent=toP(pct)+'٪';
+  document.getElementById('progressFill').style.width=pct+'%';
+  document.getElementById('progressNums').textContent=toP(clicks)+' از '+toP(target);
+}
 
-  function saveState() {
-    try {
-      localStorage.setItem('brt_state_' + (userId || 'guest'), JSON.stringify(state));
-    } catch(e) {}
-  }
+function handleClick(e){
+  if(isWinShowing||round>MAX_ROUNDS) return;
+  const btn=document.getElementById('brtBtn');
+  const rp=document.createElement('span'); rp.className='ripple';
+  const rc=btn.getBoundingClientRect(), sz=Math.max(rc.width,rc.height);
+  rp.style.width=rp.style.height=sz+'px';
+  rp.style.left=(e.clientX-rc.left-sz/2)+'px';
+  rp.style.top=(e.clientY-rc.top-sz/2)+'px';
+  btn.appendChild(rp); setTimeout(()=>rp.remove(),600);
 
-  function updateUI() {
-    const target = getTarget(state.round);
-    const pct = Math.min(100, Math.round(state.clicks / target * 100));
-    document.getElementById('levelBadge').textContent = `🏆 Level ${state.round}`;
-    document.getElementById('clickCount').textContent = state.clicks.toLocaleString('fa');
-    document.getElementById('targetCount').textContent = target.toLocaleString('fa');
-    document.getElementById('remaining').textContent = Math.max(0, target - state.clicks).toLocaleString('fa');
-    document.getElementById('progressFill').style.width = pct + '%';
-    document.getElementById('progressPercent').textContent = pct + '٪';
-    document.getElementById('roundInfo').textContent = `دور ${state.round} از ${MAX_ROUNDS}`;
-  }
-
-  function handleClick(e) {
-    if (state.done) return;
-    state.clicks++;
-    saveState();
-    updateUI();
-
-    // انیمیشن عدد
-    const wrap = document.getElementById('btnWrap');
-    const span = document.createElement('span');
-    span.className = 'float-num';
-    span.textContent = '+1';
-    span.style.left = (e.offsetX || 100) + 'px';
-    span.style.top = (e.offsetY || 100) + 'px';
-    wrap.appendChild(span);
-    setTimeout(() => span.remove(), 800);
-
-    // چک تارگت
-    const target = getTarget(state.round);
-    if (state.clicks >= target) {
-      // ارسال پیام به بات
-      if (tg && userId) {
-        tg.sendData(JSON.stringify({ type: 'win', round: state.round, target: target, userId: userId }));
-      }
-      setTimeout(() => document.getElementById('winOverlay').classList.add('show'), 300);
-    }
-  }
-
-  function nextRound() {
-    document.getElementById('winOverlay').classList.remove('show');
-    if (state.round >= MAX_ROUNDS) {
-      state.done = true;
-      saveState();
-      document.getElementById('doneOverlay').classList.add('show');
-      return;
-    }
-    state.round++;
-    state.clicks = 0;
-    saveState();
-    updateUI();
-  }
-
-  if (state.done) {
-    document.getElementById('doneOverlay').classList.add('show');
-  }
-
+  clicks++;
   updateUI();
+
+  if(clicks>=target){
+    isWinShowing=true;
+    setTimeout(showWin,200);
+  }
+}
+
+function showWin(){
+  const sub=document.getElementById('winSub');
+  const nr=round+1;
+  if(nr>MAX_ROUNDS) sub.textContent='۱ گیگابایت برات ارسال میشه 🎁\nتمام لِوِل‌ها رو تموم کردی! 🏆';
+  else sub.textContent='۱ گیگابایت رایگان برات ارسال میشه 🎁\nبرای دور بعد، دوباره از منوی بات «بازی و جایزه» رو بزن';
+  document.getElementById('winOverlay').classList.add('show');
+  sendToBot({event:"win", clicks: clicks, round: round});
+}
+
+updateUI();
+
+// ── ارسال آخرین وضعیت قبل از بسته شدن صفحه (best-effort) ──
+window.addEventListener('beforeunload', () => {
+  if (clicks !== lastReportedClicks && round <= MAX_ROUNDS) {
+    sendToBot({event:"progress", clicks: clicks, round: round});
+  }
+});
 </script>
 </body>
 </html>
