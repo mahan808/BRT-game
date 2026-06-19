@@ -123,9 +123,28 @@ body {
   margin-top:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(66,165,245,0.4);
   color:#bbdefb; font-size:12px; padding:8px 18px; border-radius:10px; cursor:pointer;
 }
+.loading-overlay {
+  position:fixed; inset:0; z-index:200;
+  background:#0a1628;
+  display:flex; align-items:center; justify-content:center;
+  flex-direction:column; gap:14px;
+  transition:opacity 0.25s ease;
+}
+.loading-overlay.hide { opacity:0; pointer-events:none; }
+.loading-spinner {
+  width:36px; height:36px; border-radius:50%;
+  border:3px solid rgba(66,165,245,0.2); border-top-color:#4fc3f7;
+  animation:spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+.loading-text { font-size:12px; color:#90caf9; }
 </style>
 </head>
 <body>
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">در حال بارگذاری پیشرفت شما...</div>
+</div>
 <div class="particles" id="particles"></div>
 <div class="container" id="mainContainer">
   <div style="text-align:center">
@@ -171,61 +190,60 @@ let round     = parseInt(params.get('round'))  || 1;
 let target    = parseInt(params.get('target')) || 3000;
 const MAX_ROUNDS = parseInt(params.get('max')) || 50;
 
-// ── کلید ذخیره‌سازی محلی (مستقل از بات، همیشه قابل‌اعتماد) ──
+// ── ذخیره‌سازی روی Telegram CloudStorage ──
+// برخلاف localStorage، این روی سرور تلگرام (وابسته به اکانت کاربر) ذخیره می‌شه
+// و با پاک‌شدن کش گوشی یا عوض‌شدن دستگاه از بین نمی‌ره.
 const STORAGE_KEY = 'brt_progress_v1';
 
-function readLocal(){
+let tg = null;
+try{ tg = window.Telegram?.WebApp; if(tg) tg.ready(); if(tg) tg.expand(); } catch(e){}
+
+function cloudGet(key){
+  return new Promise((resolve)=>{
+    try{
+      if(tg && tg.CloudStorage && tg.CloudStorage.getItem){
+        tg.CloudStorage.getItem(key, function(err, value){
+          if(err || !value){ resolve(null); return; }
+          try{ resolve(JSON.parse(value)); }catch(e){ resolve(null); }
+        });
+      }else{
+        resolve(null);
+      }
+    }catch(e){ resolve(null); }
+  });
+}
+function cloudSet(key, obj){
+  return new Promise((resolve)=>{
+    try{
+      if(tg && tg.CloudStorage && tg.CloudStorage.setItem){
+        tg.CloudStorage.setItem(key, JSON.stringify(obj), function(){ resolve(); });
+      }else{
+        resolve();
+      }
+    }catch(e){ resolve(); }
+  });
+}
+
+// fallback محلی، فقط برای زمانی که CloudStorage در دسترس نباشه (مثلاً تست در مرورگر معمولی)
+function readLocalFallback(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
-    if(!raw) return null;
-    return JSON.parse(raw);
+    return raw ? JSON.parse(raw) : null;
   }catch(e){ return null; }
 }
-function writeLocal(r, c){
+function writeLocalFallback(r, c){
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({round:r, clicks:c})); }catch(e){}
 }
 
-// اگر دیتای محلی مربوط به همین لِوِل بود و بیشتر از مقدار بات بود، همونو نگه می‌داریم
-// (یعنی اگر بات هنوز خبر آخرین کلیک‌ها رو نگرفته بود، چیزی گم نمی‌شه)
-// اگر لِوِل عوض شده باشه (یعنی برنده شده و رفته لِوِل بعد)، از همون urlClicks (که ۰ هست) شروع می‌کنیم.
-const local = readLocal();
-let clicks;
-if(local && local.round === round){
-  clicks = Math.max(local.clicks || 0, urlClicks);
-}else{
-  clicks = urlClicks;
+function saveProgress(r, c){
+  writeLocalFallback(r, c); // فوری، همگام
+  cloudSet(STORAGE_KEY, {round:r, clicks:c}); // قطعی، روی سرور تلگرام
 }
-writeLocal(round, clicks);
 
+let clicks = urlClicks; // مقدار موقت تا داده‌ی واقعی از CloudStorage برسه
 let isWinShowing = false;
-let lastReportedClicks = -1; // یعنی هنوز چیزی به بات گزارش نشده
 
 function toP(n){ return String(n).replace(/\d/g,d=>'۰۱۲۳۴۵۶۷۸۹'[d]); }
-
-let tg = null;
-try{ tg = window.Telegram?.WebApp; if(tg) tg.ready(); } catch(e){}
-
-// توجه: tg.sendData بعد از ارسال، Mini App رو می‌بنده!
-// به همین خاطر هیچ‌وقت وسط بازی (مثلاً با setInterval) صداش نمی‌زنیم،
-// فقط وقتی واقعاً قراره صفحه بسته شه یا کاربر برنده شده.
-function sendToBot(payload){
-  try{ if(tg && tg.sendData) tg.sendData(JSON.stringify(payload)); }catch(e){}
-}
-
-function reportProgressIfNeeded(){
-  if (round > MAX_ROUNDS) return;
-  if (clicks !== lastReportedClicks && clicks > 0) {
-    sendToBot({event:"progress", clicks: clicks, round: round});
-    lastReportedClicks = clicks;
-  }
-}
-
-// ── وقتی کاربر واقعاً از صفحه خارج می‌شه (نه قبلش!) آخرین وضعیت رو به بات می‌فرستیم ──
-// pagehide نسبت به beforeunload در وب‌ویوهای موبایل/تلگرام قابل‌اعتمادتره
-window.addEventListener('pagehide', reportProgressIfNeeded);
-window.addEventListener('beforeunload', reportProgressIfNeeded);
-// وقتی Mini App توسط دکمه بستن تلگرام (بالای صفحه) بسته می‌شه هم این رخ می‌ده
-try{ if(tg) tg.onEvent('viewportChanged', function(){ if(tg.isExpanded === false){} }); }catch(e){}
 
 function finishAndClose(){
   try{ if(tg && tg.close) tg.close(); }catch(e){}
@@ -271,7 +289,7 @@ function handleClick(e){
   btn.appendChild(rp); setTimeout(()=>rp.remove(),600);
 
   clicks++;
-  writeLocal(round, clicks); // ذخیره فوری و قابل‌اعتماد در حافظه مرورگر
+  saveProgress(round, clicks); // ذخیره فوری: هم محلی، هم روی CloudStorage تلگرام
   updateUI();
 
   if(clicks>=target){
@@ -286,12 +304,33 @@ function showWin(){
   if(nr>MAX_ROUNDS) sub.textContent='۱ گیگابایت برات ارسال میشه 🎁\nتمام لِوِل‌ها رو تموم کردی! 🏆';
   else sub.textContent='۱ گیگابایت رایگان برات ارسال میشه 🎁\nبرای دور بعد، دوباره از منوی بات «بازی و جایزه» رو بزن';
   document.getElementById('winOverlay').classList.add('show');
-  // برای لِوِل بعد، محلی هم صفر می‌شه تا اگه دوباره برگشت از صفر شروع شه
-  writeLocal(round + 1, 0);
-  sendToBot({event:"win", clicks: clicks, round: round});
+  // برای لِوِل بعد، شمارنده صفر می‌شه تا اگه دوباره برگشت از صفر شروع شه
+  saveProgress(round + 1, 0);
+  // اطلاع به بات که برنده شد (پیام ادمین + هماهنگی سمت بات)
+  // توجه: این تنها جایی است که sendData صدا زده می‌شود، چون این رویداد
+  // طبیعتاً به بسته‌شدن/برگشت به بات منتهی می‌شود (کاربر دکمه «بستن» را می‌زند).
+  try{ if(tg && tg.sendData) tg.sendData(JSON.stringify({event:"win", clicks: clicks, round: round})); }catch(e){}
 }
 
-updateUI();
+// ── شروع: ابتدا از CloudStorage بخون، بعد UI رو نشون بده ──
+async function init(){
+  const cloud = await cloudGet(STORAGE_KEY);
+  const local = readLocalFallback();
+
+  // بیشترین مقدار معتبر برای همین لِوِل رو انتخاب کن (تا هیچ کلیکی گم نشه)
+  let best = urlClicks;
+  if(cloud && cloud.round === round){ best = Math.max(best, cloud.clicks || 0); }
+  if(local && local.round === round){ best = Math.max(best, local.clicks || 0); }
+  clicks = best;
+
+  saveProgress(round, clicks); // همگام‌سازی هر دو محل ذخیره با مقدار نهایی
+  updateUI();
+
+  const overlay = document.getElementById('loadingOverlay');
+  if(overlay) overlay.classList.add('hide');
+}
+
+init();
 </script>
 </body>
 </html>
